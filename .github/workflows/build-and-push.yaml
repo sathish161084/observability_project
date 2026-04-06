@@ -3,12 +3,14 @@ name: build-and-push
 on:
   push:
     branches: [ main ]
-    paths: [ 'app-src/**', '.github/workflows/build-and-push.yaml' ]
+    paths:
+      - 'app-src/**'
+      - '.github/workflows/build-and-push.yaml'
   workflow_dispatch:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 env:
   AWS_REGION: us-east-1
@@ -19,25 +21,76 @@ jobs:
     strategy:
       matrix:
         service: [frontend, backend, worker]
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ECR_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      - uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
       - name: Set image metadata
         id: meta
+        shell: bash
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
           IMAGE_URI=${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/three-tier-${{ matrix.service }}
+
           echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
-          echo "image_tag=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          echo "image_tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
       - name: Build image
         run: |
-          docker build -t ${{ steps.meta.outputs.image_uri }}:${{ steps.meta.outputs.image_tag }} ./app-src/${{ matrix.service }}
-          docker tag ${{ steps.meta.outputs.image_uri }}:${{ steps.meta.outputs.image_tag }} ${{ steps.meta.outputs.image_uri }}:latest
+          docker build \
+            -t ${{ steps.meta.outputs.image_uri }}:${{ steps.meta.outputs.image_tag }} \
+            ./app-src/${{ matrix.service }}
+
       - name: Push image
         run: |
           docker push ${{ steps.meta.outputs.image_uri }}:${{ steps.meta.outputs.image_tag }}
-          docker push ${{ steps.meta.outputs.image_uri }}:latest
+
+      - name: Update GitOps values
+        shell: bash
+        run: |
+          FILE="gitops/values/${{ matrix.service }}-values.yaml"
+          TAG="${{ steps.meta.outputs.image_tag }}"
+
+          python - <<'PY'
+          import os
+          import re
+
+          file_path = os.environ["FILE"]
+          tag = os.environ["TAG"]
+
+          with open(file_path, "r", encoding="utf-8") as f:
+              data = f.read()
+
+          data = re.sub(r"tag:\\s*.*", f"tag: {tag}", data)
+
+          with open(file_path, "w", encoding="utf-8") as f:
+              f.write(data)
+          PY
+        env:
+          FILE: gitops/values/${{ matrix.service }}-values.yaml
+          TAG: ${{ steps.meta.outputs.image_tag }}
+
+      - name: Commit updated GitOps values
+        shell: bash
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+
+          git add gitops/values/${{ matrix.service }}-values.yaml
+          git commit -m "Update ${{ matrix.service }} image tag to ${{ steps.meta.outputs.image_tag }}" || exit 0
+
+          git pull --rebase origin main || true
+          git push origin main
