@@ -2,7 +2,7 @@
 
 1. Update kubeconfig:
 ```bash
-aws eks update-kubeconfig --region eu-west-1 --name <cluster-name>
+aws eks update-kubeconfig --region us-east-1 --name <cluster-name>
 ```
 
 2. Install Argo CD:
@@ -14,7 +14,7 @@ kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/st
 3. Update repo URL and account ID:
 ```bash
 ./scripts/update_repo_urls.sh https://github.com/<org-or-user>/three-tier-eks-platform-prod.git
-./scripts/update_account_id.sh <aws-account-id> eu-west-1
+./scripts/update_account_id.sh <aws-account-id> us-east-1
 ```
 
 4. Apply root app:

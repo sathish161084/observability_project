@@ -14,14 +14,14 @@ spec:
         config:
           registries:
             - name: ECR
-              prefix: 442999092835.dkr.ecr.eu-west-1.amazonaws.com
-              api_url: https://442999092835.dkr.ecr.eu-west-1.amazonaws.com
+              prefix: 442999092835.dkr.ecr.us-east-1.amazonaws.com
+              api_url: https://442999092835.dkr.ecr.us-east-1.amazonaws.com
               credentials: ext:/scripts/login.sh
         authScripts:
           enabled: true
           scripts:
             login.sh: |
-              aws ecr get-authorization-token --region eu-west-1 --output text --query 'authorizationData[].authorizationToken' | base64 -d
+              aws ecr get-authorization-token --region us-east-1 --output text --query 'authorizationData[].authorizationToken' | base64 -d
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
