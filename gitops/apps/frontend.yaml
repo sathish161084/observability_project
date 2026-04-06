@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/sathish161084/observability_project.git
-    targetRevision: HEAD
+    targetRevision: main
     path: helm/frontend
 
     helm:
