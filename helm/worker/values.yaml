@@ -1,7 +1,7 @@
 global:
   deploymentEnv: dev
   otelEndpoint: http://otel-collector.observability.svc.cluster.local:4317
-  kafkaBootstrap: b-1.example.kafka.amazonaws.com:9092
+  kafkaBootstrap: b-1.observabilityeksprodms.88x72d.c8.kafka.us-east-1.amazonaws.com:9094,b-2.observabilityeksprodms.88x72d.c8.kafka.us-east-1.amazonaws.com:9094
   orderTopic: orders
   dlqTopic: orders-dlq
 image:
