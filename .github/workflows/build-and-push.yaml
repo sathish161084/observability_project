@@ -74,7 +74,7 @@ jobs:
           with open(file_path, "r", encoding="utf-8") as f:
               data = f.read()
 
-          data = re.sub(r"(?m)^(\s*tag:\s*).*$", rf"\1{tag}", data)
+          data = re.sub(r"(?m)^(\s*tag:\s*).*$", rf"\g<1>{tag}", data)
 
           with open(file_path, "w", encoding="utf-8") as f:
               f.write(data)
