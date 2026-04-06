@@ -12,10 +12,24 @@ spec:
     helm:
       values: |
         grafana:
+          enabled: true
           adminPassword: admin
+
         prometheus:
+          enabled: true
           prometheusSpec:
+            replicas: 1
             serviceMonitorSelectorNilUsesHelmValues: false
+
+        alertmanager:
+          enabled: true
+
+        kubeStateMetrics:
+          enabled: true
+
+        nodeExporter:
+          enabled: true
+
         defaultRules:
           create: true
   destination:
