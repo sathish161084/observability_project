@@ -18,12 +18,18 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports: [{ containerPort: 9102 }]
           env:
-            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ .Values.global.otelEndpoint | quote }} }
-            - { name: OTEL_SERVICE_NAME, value: "worker" }
-            - { name: DEPLOYMENT_ENV, value: {{ .Values.global.deploymentEnv | quote }} }
-            - { name: KAFKA_BOOTSTRAP, value: {{ .Values.global.kafkaBootstrap | quote }} }
-            - { name: ORDER_TOPIC, value: {{ .Values.global.orderTopic | quote }} }
-            - { name: DLQ_TOPIC, value: {{ .Values.global.dlqTopic | quote }} }
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.global.otelEndpoint | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: "worker"
+            - name: DEPLOYMENT_ENV
+              value: {{ .Values.global.deploymentEnv | quote }}
+            - name: KAFKA_BOOTSTRAP
+              value: {{ .Values.global.kafkaBootstrap | quote }}
+            - name: ORDER_TOPIC
+              value: {{ .Values.global.orderTopic | quote }}
+            - name: DLQ_TOPIC
+              value: {{ .Values.global.dlqTopic | quote }}
             - name: KAFKA_SECURITY_PROTOCOL
               value: "SSL"
             - name: KAFKA_RETRY_ATTEMPTS
