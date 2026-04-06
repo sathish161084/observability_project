@@ -1,1 +1,3 @@
-variable "repository_names" { type = list(string) }
+variable "repository_names" {
+  type = list(string)
+}

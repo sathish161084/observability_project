@@ -30,22 +30,20 @@ module "eks" {
   }
   tags = var.tags
 }
-resource "aws_iam_openid_connect_provider" "eks" {
-  url = module.eks.cluster_oidc_issuer_url
-  client_id_list = ["sts.amazonaws.com"]
-  thumbprint_list = [var.oidc_thumbprint]
-}
+
 data "aws_iam_policy_document" "alb_assume_role" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
+
     principals {
-      type = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.eks.arn]
+      type        = "Federated"
+      identifiers = [module.eks.oidc_provider_arn]
     }
+
     condition {
-      test = "StringEquals"
+      test     = "StringEquals"
       variable = "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:sub"
-      values = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
+      values   = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
     }
   }
 }

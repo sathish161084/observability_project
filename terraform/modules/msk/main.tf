@@ -32,14 +32,21 @@ resource "aws_msk_cluster" "this" {
     instance_type   = var.broker_instance_type
     client_subnets  = var.private_subnet_ids
     security_groups = [aws_security_group.msk.id]
-    storage_info { ebs_storage_info { volume_size = 100 } }
+    storage_info {
+      ebs_storage_info {
+        volume_size = 100
+      }
+    }
   }
   configuration_info {
     arn      = aws_msk_configuration.this.arn
     revision = aws_msk_configuration.this.latest_revision
   }
   encryption_info {
-    encryption_in_transit { client_broker = "TLS_PLAINTEXT", in_cluster = true }
+    encryption_in_transit {
+      client_broker = "TLS_PLAINTEXT"
+      in_cluster    = true
+    }
   }
 }
 output "bootstrap_brokers" { value = aws_msk_cluster.this.bootstrap_brokers }
