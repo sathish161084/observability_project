@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: eu-west-1
+  AWS_REGION: us-east-1
 
 jobs:
   plan:
@@ -25,7 +25,7 @@ jobs:
           terraform_version: 1.9.8
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_TERRAFORM_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
       - run: terraform init
       - run: terraform fmt -check -recursive
