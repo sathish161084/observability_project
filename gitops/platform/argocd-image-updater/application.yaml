@@ -14,8 +14,8 @@ spec:
         config:
           registries:
             - name: ECR
-              prefix: ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com
-              api_url: https://ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com
+              prefix: 442999092835.dkr.ecr.eu-west-1.amazonaws.com
+              api_url: https://442999092835.dkr.ecr.eu-west-1.amazonaws.com
               credentials: ext:/scripts/login.sh
         authScripts:
           enabled: true
