@@ -40,18 +40,21 @@ def configure_tracing():
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=True)))
     trace.set_tracer_provider(provider)
 
+configure_logging()
+configure_tracing()
+
+app = FastAPI()
+FastAPIInstrumentor.instrument_app(app)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global producer
-    configure_logging()
-    configure_tracing()
-    FastAPIInstrumentor.instrument_app(app)
     producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP)
     await producer.start()
     yield
     await producer.stop()
 
-app = FastAPI(lifespan=lifespan)
+app.router.lifespan_context = lifespan
 
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
