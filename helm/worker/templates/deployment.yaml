@@ -37,6 +37,6 @@ spec:
             - name: KAFKA_RETRY_DELAY_SECONDS
               value: "15"
           resources:
-            {{ toYaml .Values.resources | indent 2 }}
+          {{ toYaml .Values.resources | indent 2 }}
           readinessProbe: { httpGet: { path: /health, port: 9102 } }
           livenessProbe: { httpGet: { path: /health, port: 9102 } }
