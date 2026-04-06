@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels: { app: backend }
+  template:
+    metadata:
+      labels: { app: backend, observability: enabled }
+      annotations:
+        argocd-image-updater.argoproj.io/image-list: backend={{ .Values.image.repository }}
+    spec:
+      containers:
+        - name: backend
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{ containerPort: 8000 }]
+          env:
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ .Values.global.otelEndpoint | quote }} }
+            - { name: OTEL_SERVICE_NAME, value: "backend" }
+            - { name: DEPLOYMENT_ENV, value: {{ .Values.global.deploymentEnv | quote }} }
+            - { name: KAFKA_BOOTSTRAP, value: {{ .Values.global.kafkaBootstrap | quote }} }
+            - { name: ORDER_TOPIC, value: {{ .Values.global.orderTopic | quote }} }
+            - { name: DLQ_TOPIC, value: {{ .Values.global.dlqTopic | quote }} }
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          readinessProbe: { httpGet: { path: /health, port: 8000 } }
+          livenessProbe: { httpGet: { path: /health, port: 8000 } }

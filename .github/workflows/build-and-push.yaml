@@ -1,0 +1,43 @@
+name: build-and-push
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'app-src/**', '.github/workflows/build-and-push.yaml' ]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [frontend, backend, worker]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - name: Set image metadata
+        id: meta
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          IMAGE_URI=${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/three-tier-${{ matrix.service }}
+          echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "image_tag=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+      - name: Build image
+        run: |
+          docker build -t ${{ steps.meta.outputs.image_uri }}:${{ steps.meta.outputs.image_tag }} ./app-src/${{ matrix.service }}
+          docker tag ${{ steps.meta.outputs.image_uri }}:${{ steps.meta.outputs.image_tag }} ${{ steps.meta.outputs.image_uri }}:latest
+      - name: Push image
+        run: |
+          docker push ${{ steps.meta.outputs.image_uri }}:${{ steps.meta.outputs.image_tag }}
+          docker push ${{ steps.meta.outputs.image_uri }}:latest

@@ -1,0 +1,14 @@
+global:
+  deploymentEnv: dev
+  otelEndpoint: http://otel-collector.observability.svc.cluster.local:4317
+  kafkaBootstrap: b-1.example.kafka.amazonaws.com:9092
+  orderTopic: orders
+  dlqTopic: orders-dlq
+image:
+  repository: ""
+  tag: latest
+  pullPolicy: IfNotPresent
+replicaCount: 1
+resources:
+  requests: { cpu: 150m, memory: 256Mi }
+  limits: { cpu: 500m, memory: 512Mi }

@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: worker
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/REPLACE_ME/three-tier-eks-platform-prod.git
+    targetRevision: HEAD
+    path: helm/worker
+
+    helm:
+      valueFiles:
+        - ../../gitops/values/common-values.yaml
+        - ../../gitops/values/worker-values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }

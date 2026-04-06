@@ -1,0 +1,44 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: three-tier-alerts
+  namespace: monitoring
+spec:
+  groups:
+    - name: three-tier.rules
+      rules:
+        - alert: BackendHighErrorRate
+          expr: (sum(rate(app_http_requests_total{status=~"5.."}[5m])) / sum(rate(app_http_requests_total[5m]))) > 0.05
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: Backend error ratio is high
+            description: The backend 5xx ratio is above 5 percent for 10 minutes.
+        - alert: BackendHighLatencyP95
+          expr: histogram_quantile(0.95, sum(rate(app_http_request_duration_seconds_bucket[5m])) by (le)) > 1
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: Backend p95 latency is high
+            description: Backend p95 latency has exceeded 1 second for 10 minutes.
+        - alert: WorkerFailuresDetected
+          expr: sum(rate(worker_messages_processed_total{result="failed"}[5m])) > 0
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: Worker failures detected
+            description: Worker failures are occurring and the DLQ path may be active.
+        - alert: SLOFastBurn
+          expr: (sum(rate(app_http_requests_total{status=~"5.."}[5m])) / sum(rate(app_http_requests_total[5m]))) > (14.4 * 0.001)
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: Error budget fast burn
+            description: Service is burning error budget too quickly over a short window.
+        - alert: SLOSlowBurn
+          expr: (sum(rate(app_http_requests_total{status=~"5.."}[1h])) / sum(rate(app_http_requests_total[1h]))) > (6 * 0.001)
+          for: 1h
+          labels: { severity: warning }
+          annotations:
+            summary: Error budget slow burn
+            description: Service is steadily burning through the SLO budget.

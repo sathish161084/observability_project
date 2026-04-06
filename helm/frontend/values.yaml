@@ -1,0 +1,12 @@
+image:
+  repository: ""
+  tag: latest
+  pullPolicy: IfNotPresent
+replicaCount: 2
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip

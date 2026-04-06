@@ -1,0 +1,46 @@
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: 0.108.0
+  pullPolicy: IfNotPresent
+config: |
+  extensions:
+    health_check: {}
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+        http:
+    prometheus:
+      config:
+        scrape_configs:
+          - job_name: backend
+            static_configs: [{ targets: ['backend.app.svc.cluster.local:8000'] }]
+          - job_name: worker
+            static_configs: [{ targets: ['worker.app.svc.cluster.local:9102'] }]
+  processors:
+    batch:
+  exporters:
+    logging:
+      verbosity: normal
+    otlp/tempo:
+      endpoint: tempo.observability.svc.cluster.local:4317
+      tls: { insecure: true }
+    loki:
+      endpoint: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
+    prometheusremotewrite:
+      endpoint: http://mimir.observability.svc.cluster.local/api/v1/push
+  service:
+    extensions: [health_check]
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [batch]
+        exporters: [logging, otlp/tempo]
+      metrics:
+        receivers: [otlp, prometheus]
+        processors: [batch]
+        exporters: [logging, prometheusremotewrite]
+      logs:
+        receivers: [otlp]
+        processors: [batch]
+        exporters: [logging, loki]
