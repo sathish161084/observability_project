@@ -3,23 +3,21 @@ import json
 import logging
 import os
 import random
+import ssl
 import time
 from contextlib import asynccontextmanager
-from typing import Optional
 
 from aiokafka import AIOKafkaProducer
 from fastapi import FastAPI, HTTPException, Request, Response
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from pythonjsonlogger import jsonlogger
-
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+from opentelemetry.sdk.resources import Resource, SERVICE_NAME
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
 logger = logging.getLogger("backend")
 
@@ -35,15 +33,15 @@ REQUEST_LATENCY = Histogram(
     ["endpoint", "method"],
 )
 
-KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "b-1.example.kafka.amazonaws.com:9092")
-ORDER_TOPIC = os.getenv("ORDER_TOPIC", "orders")
-DEPLOYMENT_ENV = os.getenv("DEPLOYMENT_ENV", "dev")
-OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv(
-    "OTEL_EXPORTER_OTLP_ENDPOINT",
-    "http://otel-collector.observability.svc.cluster.local:4317",
-)
+tracer = trace.get_tracer("backend.api")
 
-producer: Optional[AIOKafkaProducer] = None
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "")
+KAFKA_SECURITY_PROTOCOL = os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT")
+KAFKA_RETRY_ATTEMPTS = int(os.getenv("KAFKA_RETRY_ATTEMPTS", "20"))
+KAFKA_RETRY_DELAY_SECONDS = int(os.getenv("KAFKA_RETRY_DELAY_SECONDS", "15"))
+ORDER_TOPIC = os.getenv("ORDER_TOPIC", "orders")
+
+producer = None
 
 
 def configure_logging() -> None:
@@ -61,48 +59,87 @@ def configure_logging() -> None:
 
 
 def configure_tracing() -> None:
+    endpoint = os.getenv(
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "http://otel-collector.observability.svc.cluster.local:4317",
+    )
+
     resource = Resource.create(
         {
             SERVICE_NAME: "backend",
-            "deployment.environment": DEPLOYMENT_ENV,
+            "deployment.environment": os.getenv("DEPLOYMENT_ENV", "dev"),
             "service.namespace": "app",
         }
     )
 
     provider = TracerProvider(resource=resource)
-    exporter = OTLPSpanExporter(
-        endpoint=OTEL_EXPORTER_OTLP_ENDPOINT,
-        insecure=True,
+    provider.add_span_processor(
+        BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=True))
     )
-    provider.add_span_processor(BatchSpanProcessor(exporter))
     trace.set_tracer_provider(provider)
+
+
+def build_ssl_context():
+    if KAFKA_SECURITY_PROTOCOL not in ("SSL", "SASL_SSL"):
+        return None
+    return ssl.create_default_context()
+
+
+async def create_kafka_producer():
+    kwargs = {
+        "bootstrap_servers": KAFKA_BOOTSTRAP,
+        "security_protocol": KAFKA_SECURITY_PROTOCOL,
+    }
+
+    ssl_context = build_ssl_context()
+    if ssl_context:
+        kwargs["ssl_context"] = ssl_context
+
+    kafka_producer = AIOKafkaProducer(**kwargs)
+    await kafka_producer.start()
+    return kafka_producer
+
+
+async def start_kafka_with_retry():
+    global producer
+
+    for attempt in range(1, KAFKA_RETRY_ATTEMPTS + 1):
+        try:
+            producer = await create_kafka_producer()
+            logger.info("kafka producer connected")
+            return
+        except Exception as exc:
+            logger.warning(
+                "kafka producer connection failed on attempt %s/%s: %s",
+                attempt,
+                KAFKA_RETRY_ATTEMPTS,
+                exc,
+            )
+            await asyncio.sleep(KAFKA_RETRY_DELAY_SECONDS)
+
+    logger.error("kafka producer could not connect after retries")
+    producer = None
 
 
 configure_logging()
 configure_tracing()
-tracer = trace.get_tracer("backend.api")
+
+app = FastAPI()
+FastAPIInstrumentor.instrument_app(app)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global producer
-
-    producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP)
-    await producer.start()
-    logger.info("Kafka producer started")
-
+    await start_kafka_with_retry()
     try:
         yield
     finally:
-        if producer is not None:
+        if producer:
             await producer.stop()
-            logger.info("Kafka producer stopped")
+            logger.info("backend producer stopped")
 
 
-app = FastAPI(lifespan=lifespan)
-
-# Important: instrument after app creation, not inside startup/lifespan body
-FastAPIInstrumentor.instrument_app(app)
+app.router.lifespan_context = lifespan
 
 
 @app.middleware("http")
@@ -115,21 +152,24 @@ async def metrics_middleware(request: Request, call_next):
         status = str(response.status_code)
         return response
     finally:
+        duration = time.perf_counter() - start
         REQUEST_COUNT.labels(
             endpoint=request.url.path,
             method=request.method,
             status=status,
         ).inc()
-
         REQUEST_LATENCY.labels(
             endpoint=request.url.path,
             method=request.method,
-        ).observe(time.perf_counter() - start)
+        ).observe(duration)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "kafka_connected": producer is not None,
+    }
 
 
 @app.get("/metrics")
@@ -157,7 +197,8 @@ async def slow():
 
 @app.post("/api/checkout")
 async def checkout(payload: dict):
-    global producer
+    if producer is None:
+        raise HTTPException(status_code=503, detail="kafka producer not ready")
 
     order_id = f"ord-{random.randint(100000, 999999)}"
 
@@ -166,10 +207,6 @@ async def checkout(payload: dict):
             logger.error("forced checkout error")
             raise HTTPException(status_code=500, detail="forced checkout error")
 
-        if producer is None:
-            logger.error("Kafka producer is not initialized")
-            raise HTTPException(status_code=500, detail="Kafka producer not initialized")
-
         event = {
             "order_id": order_id,
             "customer_id": payload.get("customer_id", "anonymous"),
@@ -177,10 +214,6 @@ async def checkout(payload: dict):
             "simulate_failure": payload.get("simulate_failure", False),
         }
 
-        await producer.send_and_wait(
-            ORDER_TOPIC,
-            json.dumps(event).encode("utf-8"),
-        )
-
-        logger.info("order published", extra={"order_id": order_id})
+        await producer.send_and_wait(ORDER_TOPIC, json.dumps(event).encode("utf-8"))
+        logger.info("order published")
         return {"status": "accepted", "order_id": order_id}

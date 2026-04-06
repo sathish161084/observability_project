@@ -24,5 +24,11 @@ spec:
             - { name: KAFKA_BOOTSTRAP, value: {{ .Values.global.kafkaBootstrap | quote }} }
             - { name: ORDER_TOPIC, value: {{ .Values.global.orderTopic | quote }} }
             - { name: DLQ_TOPIC, value: {{ .Values.global.dlqTopic | quote }} }
+            - name: KAFKA_SECURITY_PROTOCOL
+              value: "SSL"
+            - name: KAFKA_RETRY_ATTEMPTS
+              value: "20"
+            - name: KAFKA_RETRY_DELAY_SECONDS
+              value: "15"
           resources:
 {{ toYaml .Values.resources | indent 12 }}

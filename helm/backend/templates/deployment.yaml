@@ -17,14 +17,26 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports: [{ containerPort: 8000 }]
-          env:
-            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ .Values.global.otelEndpoint | quote }} }
-            - { name: OTEL_SERVICE_NAME, value: "backend" }
-            - { name: DEPLOYMENT_ENV, value: {{ .Values.global.deploymentEnv | quote }} }
-            - { name: KAFKA_BOOTSTRAP, value: {{ .Values.global.kafkaBootstrap | quote }} }
-            - { name: ORDER_TOPIC, value: {{ .Values.global.orderTopic | quote }} }
-            - { name: DLQ_TOPIC, value: {{ .Values.global.dlqTopic | quote }} }
+      env:
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: {{ .Values.global.otelEndpoint | quote }}
+        - name: OTEL_SERVICE_NAME
+          value: "backend"
+        - name: DEPLOYMENT_ENV
+          value: {{ .Values.global.deploymentEnv | quote }}
+        - name: KAFKA_BOOTSTRAP
+          value: {{ .Values.global.kafkaBootstrap | quote }}
+        - name: ORDER_TOPIC
+          value: {{ .Values.global.orderTopic | quote }}
+        - name: DLQ_TOPIC
+          value: {{ .Values.global.dlqTopic | quote }}
+        - name: KAFKA_SECURITY_PROTOCOL
+          value: "SSL"
+        - name: KAFKA_RETRY_ATTEMPTS
+          value: "20"
+        - name: KAFKA_RETRY_DELAY_SECONDS
+          value: "15"
           resources:
-{{ toYaml .Values.resources | indent 12 }}
+          {{ toYaml .Values.resources | indent 2 }}
           readinessProbe: { httpGet: { path: /health, port: 8000 } }
           livenessProbe: { httpGet: { path: /health, port: 8000 } }
