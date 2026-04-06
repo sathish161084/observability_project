@@ -18,6 +18,11 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports: [{ containerPort: 8080 }]
           resources:
-          {{ toYaml .Values.resources | indent 2 }}
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
           readinessProbe: { httpGet: { path: /health, port: 8080 } }
           livenessProbe: { httpGet: { path: /health, port: 8080 } }
